@@ -165,7 +165,7 @@ function ExcelGrid() {
   const [selectionFocus, setSelectionFocus] = useState({ row: 1, col: 0 });
   const [editingCell, setEditingCell] = useState(null);
   const [draftValue, setDraftValue] = useState("");
-  const [dragSelection, setDragSelection] = useState(false);
+  const [dragSelection, setDragSelection] = useState(null);
   const [fillState, setFillState] = useState(null);
   const [resizeState, setResizeState] = useState(null);
   const gridRef = useRef(null);
@@ -251,7 +251,7 @@ function ExcelGrid() {
 
   useEffect(() => {
     function handlePointerUp() {
-      setDragSelection(false);
+      setDragSelection(null);
       setFillState((current) => {
         if (!current?.target) return null;
         applyFill(current.sourceRange, current.target);
@@ -330,6 +330,49 @@ function ExcelGrid() {
     }
   }, []);
 
+  function selectAllCells() {
+    setActiveCell({ row: 0, col: 0 });
+    setSelectionAnchor({ row: 0, col: 0 });
+    setSelectionFocus({ row: ROW_COUNT - 1, col: COL_COUNT - 1 });
+    gridRef.current?.focus();
+  }
+
+  function handleColumnHeaderPointerDown(event, col) {
+    if (event.button !== 0 || resizeState) return;
+    if (editingCell) commitEdit();
+    event.preventDefault();
+    const anchorCol = event.shiftKey ? selectionRange.startCol : col;
+    setActiveCell({ row: 0, col });
+    setSelectionAnchor({ row: 0, col: anchorCol });
+    setSelectionFocus({ row: ROW_COUNT - 1, col });
+    setDragSelection("col");
+    gridRef.current?.focus();
+  }
+
+  function handleColumnHeaderPointerEnter(col) {
+    if (dragSelection !== "col") return;
+    setActiveCell({ row: 0, col });
+    setSelectionFocus({ row: ROW_COUNT - 1, col });
+  }
+
+  function handleRowHeaderPointerDown(event, row) {
+    if (event.button !== 0 || resizeState) return;
+    if (editingCell) commitEdit();
+    event.preventDefault();
+    const anchorRow = event.shiftKey ? selectionRange.startRow : row;
+    setActiveCell({ row, col: 0 });
+    setSelectionAnchor({ row: anchorRow, col: 0 });
+    setSelectionFocus({ row, col: COL_COUNT - 1 });
+    setDragSelection("row");
+    gridRef.current?.focus();
+  }
+
+  function handleRowHeaderPointerEnter(row) {
+    if (dragSelection !== "row") return;
+    setActiveCell({ row, col: 0 });
+    setSelectionFocus({ row, col: COL_COUNT - 1 });
+  }
+
   function startColumnResize(event, index) {
     event.preventDefault();
     event.stopPropagation();
@@ -376,12 +419,12 @@ function ExcelGrid() {
     event.preventDefault();
     const extend = event.shiftKey;
     selectCell(row, col, extend);
-    setDragSelection(true);
+    setDragSelection("cell");
     gridRef.current?.focus();
   }
 
   function handleCellPointerEnter(row, col) {
-    if (dragSelection) {
+    if (dragSelection === "cell") {
       setSelectionFocus({ row, col });
       setActiveCell({ row, col });
     }
@@ -482,6 +525,11 @@ function ExcelGrid() {
   }
 
   const activeAddress = `${columnName(activeCell.col)}${activeCell.row + 1}`;
+  const isFullRowSelection =
+    selectionRange.startCol === 0 && selectionRange.endCol === COL_COUNT - 1;
+  const isFullColumnSelection =
+    selectionRange.startRow === 0 && selectionRange.endRow === ROW_COUNT - 1;
+  const isAllCellsSelected = isFullRowSelection && isFullColumnSelection;
 
   return (
     <div className="workbook" style={{ "--formula-height": `${formulaHeight}px` }}>
@@ -511,10 +559,28 @@ function ExcelGrid() {
         aria-label="Spreadsheet"
       >
         <div className="sheet-grid" style={gridStyle}>
-          <div className="corner-cell" />
+          <div
+            className={`corner-cell ${isAllCellsSelected ? "is-selected" : ""}`}
+            onPointerDown={selectAllCells}
+            role="button"
+            tabIndex={-1}
+          />
 
           {Array.from({ length: COL_COUNT }, (_, col) => (
-            <div className="column-header" key={`col-${col}`} style={{ gridColumn: col + 2 }}>
+            <div
+              className={[
+                "column-header",
+                isFullColumnSelection &&
+                col >= selectionRange.startCol &&
+                col <= selectionRange.endCol
+                  ? "is-selected"
+                  : ""
+              ].join(" ")}
+              key={`col-${col}`}
+              onPointerDown={(event) => handleColumnHeaderPointerDown(event, col)}
+              onPointerEnter={() => handleColumnHeaderPointerEnter(col)}
+              style={{ gridColumn: col + 2 }}
+            >
               <span>{columnName(col)}</span>
               <button
                 className="col-resizer"
@@ -526,7 +592,20 @@ function ExcelGrid() {
           ))}
 
           {Array.from({ length: ROW_COUNT }, (_, row) => (
-            <div className="row-header" key={`row-${row}`} style={{ gridRow: row + 2 }}>
+            <div
+              className={[
+                "row-header",
+                isFullRowSelection &&
+                row >= selectionRange.startRow &&
+                row <= selectionRange.endRow
+                  ? "is-selected"
+                  : ""
+              ].join(" ")}
+              key={`row-${row}`}
+              onPointerDown={(event) => handleRowHeaderPointerDown(event, row)}
+              onPointerEnter={() => handleRowHeaderPointerEnter(row)}
+              style={{ gridRow: row + 2 }}
+            >
               <span>{row + 1}</span>
               <button
                 className="row-resizer"

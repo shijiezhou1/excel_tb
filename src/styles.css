@@ -149,6 +149,19 @@ textarea {
   user-select: none;
 }
 
+.corner-cell,
+.column-header,
+.row-header {
+  cursor: default;
+}
+
+.corner-cell.is-selected,
+.column-header.is-selected,
+.row-header.is-selected {
+  background: #dceee3;
+  color: #1d6f42;
+}
+
 .corner-cell {
   top: 0;
   left: 0;
