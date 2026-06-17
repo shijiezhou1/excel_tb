@@ -633,6 +633,7 @@ function ExcelGrid() {
                     "sheet-cell",
                     selected ? "is-selected" : "",
                     active ? "is-active" : "",
+                    editing ? "is-editing" : "",
                     fillPreview ? "is-fill-preview" : ""
                   ].join(" ")}
                   key={`${row}-${col}`}
