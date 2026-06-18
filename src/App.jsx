@@ -13,6 +13,8 @@ const COL_HEADER_HEIGHT = 34;
 const DEFAULT_FORMULA_HEIGHT = 34;
 const MIN_FORMULA_HEIGHT = 34;
 const MAX_FORMULA_HEIGHT = 220;
+const MAX_FREEZE_ROWS = 10;
+const MAX_FREEZE_COLS = 10;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -141,6 +143,14 @@ function parseClipboardTable(text) {
   return rows;
 }
 
+function offsetForIndex(sizes, index, baseOffset) {
+  let offset = baseOffset;
+  for (let current = 0; current < index; current += 1) {
+    offset += sizes[current];
+  }
+  return offset;
+}
+
 function App() {
   return (
     <main className="app-shell">
@@ -160,6 +170,8 @@ function ExcelGrid() {
     Array.from({ length: ROW_COUNT }, () => DEFAULT_ROW_HEIGHT)
   );
   const [formulaHeight, setFormulaHeight] = useState(DEFAULT_FORMULA_HEIGHT);
+  const [freezeRows, setFreezeRows] = useState(0);
+  const [freezeCols, setFreezeCols] = useState(0);
   const [activeCell, setActiveCell] = useState({ row: 1, col: 0 });
   const [selectionAnchor, setSelectionAnchor] = useState({ row: 1, col: 0 });
   const [selectionFocus, setSelectionFocus] = useState({ row: 1, col: 0 });
@@ -335,6 +347,41 @@ function ExcelGrid() {
     setSelectionAnchor({ row: 0, col: 0 });
     setSelectionFocus({ row: ROW_COUNT - 1, col: COL_COUNT - 1 });
     gridRef.current?.focus();
+  }
+
+  function handleFreezeRowsChange(event) {
+    setFreezeRows(clamp(Number(event.target.value) || 0, 0, Math.min(MAX_FREEZE_ROWS, ROW_COUNT - 1)));
+  }
+
+  function handleFreezeColsChange(event) {
+    setFreezeCols(clamp(Number(event.target.value) || 0, 0, Math.min(MAX_FREEZE_COLS, COL_COUNT - 1)));
+  }
+
+  function getColumnHeaderStyle(col) {
+    const style = { gridColumn: col + 2 };
+    if (col < freezeCols) {
+      style.left = `${offsetForIndex(colWidths, col, ROW_HEADER_WIDTH)}px`;
+    }
+    return style;
+  }
+
+  function getRowHeaderStyle(row) {
+    const style = { gridRow: row + 2 };
+    if (row < freezeRows) {
+      style.top = `${offsetForIndex(rowHeights, row, COL_HEADER_HEIGHT)}px`;
+    }
+    return style;
+  }
+
+  function getCellStyle(row, col) {
+    const style = { gridColumn: col + 2, gridRow: row + 2 };
+    if (row < freezeRows) {
+      style.top = `${offsetForIndex(rowHeights, row, COL_HEADER_HEIGHT)}px`;
+    }
+    if (col < freezeCols) {
+      style.left = `${offsetForIndex(colWidths, col, ROW_HEADER_WIDTH)}px`;
+    }
+    return style;
   }
 
   function handleColumnHeaderPointerDown(event, col) {
@@ -535,6 +582,28 @@ function ExcelGrid() {
     <div className="workbook" style={{ "--formula-height": `${formulaHeight}px` }}>
       <div className="formula-strip">
         <div className="name-box">{activeAddress}</div>
+        <div className="freeze-controls" aria-label="冻结窗格设置">
+          <label className="freeze-field">
+            <span>冻结行</span>
+            <input
+              type="number"
+              min="0"
+              max={Math.min(MAX_FREEZE_ROWS, ROW_COUNT - 1)}
+              value={freezeRows}
+              onChange={handleFreezeRowsChange}
+            />
+          </label>
+          <label className="freeze-field">
+            <span>冻结列</span>
+            <input
+              type="number"
+              min="0"
+              max={Math.min(MAX_FREEZE_COLS, COL_COUNT - 1)}
+              value={freezeCols}
+              onChange={handleFreezeColsChange}
+            />
+          </label>
+        </div>
         <div className="formula-box" title={rows[activeCell.row][activeCell.col]}>
           <div className="formula-content">
             {rows[activeCell.row][activeCell.col] || "\u00a0"}
@@ -570,6 +639,7 @@ function ExcelGrid() {
             <div
               className={[
                 "column-header",
+                col < freezeCols ? "is-frozen-col" : "",
                 isFullColumnSelection &&
                 col >= selectionRange.startCol &&
                 col <= selectionRange.endCol
@@ -579,7 +649,7 @@ function ExcelGrid() {
               key={`col-${col}`}
               onPointerDown={(event) => handleColumnHeaderPointerDown(event, col)}
               onPointerEnter={() => handleColumnHeaderPointerEnter(col)}
-              style={{ gridColumn: col + 2 }}
+              style={getColumnHeaderStyle(col)}
             >
               <span>{columnName(col)}</span>
               <button
@@ -595,6 +665,7 @@ function ExcelGrid() {
             <div
               className={[
                 "row-header",
+                row < freezeRows ? "is-frozen-row" : "",
                 isFullRowSelection &&
                 row >= selectionRange.startRow &&
                 row <= selectionRange.endRow
@@ -604,7 +675,7 @@ function ExcelGrid() {
               key={`row-${row}`}
               onPointerDown={(event) => handleRowHeaderPointerDown(event, row)}
               onPointerEnter={() => handleRowHeaderPointerEnter(row)}
-              style={{ gridRow: row + 2 }}
+              style={getRowHeaderStyle(row)}
             >
               <span>{row + 1}</span>
               <button
@@ -621,6 +692,8 @@ function ExcelGrid() {
               const selected = isInsideRange(row, col, selectionRange);
               const active = row === activeCell.row && col === activeCell.col;
               const editing = editingCell?.row === row && editingCell?.col === col;
+              const frozenRow = row < freezeRows;
+              const frozenCol = col < freezeCols;
               const fillPreview = previewFillRange && isInsideRange(row, col, previewFillRange);
               const isFillHandle =
                 row === selectionRange.endRow &&
@@ -634,6 +707,11 @@ function ExcelGrid() {
                     selected ? "is-selected" : "",
                     active ? "is-active" : "",
                     editing ? "is-editing" : "",
+                    frozenRow ? "is-frozen-row" : "",
+                    frozenCol ? "is-frozen-col" : "",
+                    frozenRow && frozenCol ? "is-frozen-corner" : "",
+                    row === freezeRows - 1 ? "is-freeze-row-edge" : "",
+                    col === freezeCols - 1 ? "is-freeze-col-edge" : "",
                     fillPreview ? "is-fill-preview" : ""
                   ].join(" ")}
                   key={`${row}-${col}`}
@@ -641,7 +719,7 @@ function ExcelGrid() {
                   onPointerDown={(event) => handleCellPointerDown(event, row, col)}
                   onPointerEnter={() => handleCellPointerEnter(row, col)}
                   role="gridcell"
-                  style={{ gridColumn: col + 2, gridRow: row + 2 }}
+                  style={getCellStyle(row, col)}
                 >
                   {editing ? (
                     <textarea
