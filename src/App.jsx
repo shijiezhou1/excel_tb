@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 
 const DEFAULT_COL_WIDTH = 140;
 const DEFAULT_ROW_HEIGHT = 40;
@@ -830,6 +831,14 @@ function ExcelGrid({ data }) {
   const activeRowData = rows[activeCell.row] ?? [];
   const activeCellValue = activeRowData[activeCell.col] ?? "";
 
+  function exportXlsx() {
+    const aoa = rows.map((rowData) => rowData.map((value) => value ?? ""));
+    const sheet = XLSX.utils.aoa_to_sheet(aoa);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, "Sheet1");
+    XLSX.writeFile(workbook, "export.xlsx", { bookType: "xlsx", type: "binary" });
+  }
+
   return (
     <div className="workbook" style={{ "--formula-height": `${formulaHeight}px` }}>
       <div className="formula-strip">
@@ -865,6 +874,7 @@ function ExcelGrid({ data }) {
             type="button"
           />
         </div>
+        <button className="export-btn" type="button" onClick={exportXlsx}>导出 XLSX</button>
       </div>
 
       <div
