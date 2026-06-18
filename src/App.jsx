@@ -97,6 +97,28 @@ function escapeCellForTsv(value) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
+function escapeCellForHtml(value) {
+  const encoded = String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+  return encoded.replaceAll("\n", "<br>");
+}
+
+function rangeToClipboardHtml(rows, range) {
+  const parts = ["<table>"];
+  for (let row = range.startRow; row <= range.endRow; row += 1) {
+    parts.push("<tr>");
+    for (let col = range.startCol; col <= range.endCol; col += 1) {
+      parts.push(`<td>${escapeCellForHtml(rows[row]?.[col] ?? "")}</td>`);
+    }
+    parts.push("</tr>");
+  }
+  parts.push("</table>");
+  return parts.join("");
+}
+
 function rangeToTsv(rows, range) {
   const lines = [];
   for (let row = range.startRow; row <= range.endRow; row += 1) {
@@ -572,12 +594,14 @@ function ExcelGrid() {
     if (editingCell) return;
     event.preventDefault();
     event.clipboardData.setData("text/plain", rangeToTsv(rows, selectionRange));
+    event.clipboardData.setData("text/html", rangeToClipboardHtml(rows, selectionRange));
   }
 
   function handleCut(event) {
     if (editingCell) return;
     event.preventDefault();
     event.clipboardData.setData("text/plain", rangeToTsv(rows, selectionRange));
+    event.clipboardData.setData("text/html", rangeToClipboardHtml(rows, selectionRange));
     setRows((current) =>
       current.map((row, rowIndex) =>
         row.map((cell, colIndex) =>
