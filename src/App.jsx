@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const ROW_COUNT = 80;
-const COL_COUNT = 26;
 const DEFAULT_COL_WIDTH = 140;
 const DEFAULT_ROW_HEIGHT = 40;
 const MIN_COL_WIDTH = 64;
@@ -13,6 +11,7 @@ const COL_HEADER_HEIGHT = 34;
 const DEFAULT_FORMULA_HEIGHT = 34;
 const MIN_FORMULA_HEIGHT = 34;
 const MAX_FORMULA_HEIGHT = 220;
+const ROW_BUFFER = 20;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -41,33 +40,12 @@ function columnIndexFromLabel(label) {
   return index - 1;
 }
 
-function createInitialRows() {
-  return Array.from({ length: ROW_COUNT }, (_, rowIndex) =>
-    Array.from({ length: COL_COUNT }, (_, colIndex) => {
+function createDefaultRows(rowCount, colCount) {
+  return Array.from({ length: rowCount }, (_, rowIndex) =>
+    Array.from({ length: colCount }, (_, colIndex) => {
       if (rowIndex === 0) {
-        const headers = [
-          "项目",
-          "状态",
-          "负责人",
-          "备注",
-          "长文本示例",
-          "下一步"
-        ];
-        return headers[colIndex] || "";
+        return columnName(colIndex);
       }
-
-      if (rowIndex === 1 && colIndex === 0) return "导入数据校验";
-      if (rowIndex === 1 && colIndex === 1) return "进行中";
-      if (rowIndex === 1 && colIndex === 3) return "支持复制、粘贴、选区拖拽填充。";
-      if (rowIndex === 1 && colIndex === 4) {
-        return "这个单元格故意放了很长的内容。\n它包含多行文本，行高不会被自动撑开。\n你可以拖拽左侧行边界单独调整这一行，也可以拖拽顶部列边界单独调整这一列。";
-      }
-
-      if (rowIndex === 2 && colIndex === 0) return "客户反馈整理";
-      if (rowIndex === 2 && colIndex === 4) {
-        return "粘贴 Excel/Numbers/表格数据时，会从当前选区左上角开始填入。";
-      }
-
       return "";
     })
   );
@@ -106,6 +84,18 @@ function escapeCellForHtml(value) {
   return encoded.replaceAll("\n", "<br>");
 }
 
+function rangeToTsv(rows, range) {
+  const lines = [];
+  for (let row = range.startRow; row <= range.endRow; row += 1) {
+    const cells = [];
+    for (let col = range.startCol; col <= range.endCol; col += 1) {
+      cells.push(escapeCellForTsv(rows[row]?.[col] ?? ""));
+    }
+    lines.push(cells.join("\t"));
+  }
+  return lines.join("\n");
+}
+
 function rangeToClipboardHtml(rows, range) {
   const parts = ["<table>"];
   for (let row = range.startRow; row <= range.endRow; row += 1) {
@@ -117,18 +107,6 @@ function rangeToClipboardHtml(rows, range) {
   }
   parts.push("</table>");
   return parts.join("");
-}
-
-function rangeToTsv(rows, range) {
-  const lines = [];
-  for (let row = range.startRow; row <= range.endRow; row += 1) {
-    const cells = [];
-    for (let col = range.startCol; col <= range.endCol; col += 1) {
-      cells.push(escapeCellForTsv(rows[row]?.[col] ?? ""));
-    }
-    lines.push(cells.join("\t"));
-  }
-  return lines.join("\n");
 }
 
 function parseClipboardTable(text) {
@@ -218,6 +196,14 @@ function buildPinnedOffsets(indexes, sizes, baseOffset) {
   return offsets;
 }
 
+function sumSizes(sizes, start, end) {
+  let total = 0;
+  for (let i = start; i < end; i += 1) {
+    total += sizes[i] ?? 0;
+  }
+  return total;
+}
+
 function parseRowToken(token) {
   if (!/^\d+$/.test(token)) return null;
   return Number(token) - 1;
@@ -231,23 +217,95 @@ function parseColumnToken(token) {
   return index;
 }
 
+function generateDemoData(rowCount, colCount) {
+  const rows = [];
+  for (let r = 0; r < rowCount; r += 1) {
+    const row = [];
+    for (let c = 0; c < colCount; c += 1) {
+      if (r === 0) {
+        row.push(columnName(c));
+      } else if (c === 0 && r < 8) {
+        const labels = [
+          "项目A", "任务B", "指标C", "备注D",
+          "客户E", "订单F", "库存G", "总计H"
+        ];
+        row.push(labels[r - 1] || `行${r + 1}`);
+      } else if (c < 5) {
+        const vals = [
+          "已完成", "进行中", "待审核", "高优先级",
+          Math.floor(Math.random() * 10000).toString(),
+          `值${r}-${c}`
+        ];
+        row.push(vals[Math.floor(Math.random() * vals.length)]);
+      } else if (c === 4 && r < 4) {
+        row.push("多行\n文本\n示例\n数据");
+      } else {
+        row.push(Math.random() > 0.6
+          ? Math.floor(Math.random() * 5000).toString()
+          : "");
+      }
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
 function App() {
+  const [demoRows, setDemoRows] = useState(() => 100);
+  const [demoCols, setDemoCols] = useState(() => 30);
+  const [data, setData] = useState(() => generateDemoData(100, 30));
+
+  function applyDemoSize() {
+    setData(generateDemoData(demoRows, demoCols));
+  }
+
   return (
     <main className="app-shell">
+      <div className="demo-controls">
+        <label>
+          行数
+          <input
+            type="number"
+            min="1"
+            max="2000"
+            value={demoRows}
+            onChange={(e) => setDemoRows(Math.max(1, Number(e.target.value) || 1))}
+          />
+        </label>
+        <label>
+          列数
+          <input
+            type="number"
+            min="1"
+            max="5000"
+            value={demoCols}
+            onChange={(e) => setDemoCols(Math.max(1, Number(e.target.value) || 1))}
+          />
+        </label>
+        <button type="button" onClick={applyDemoSize}>
+          生成数据
+        </button>
+        <span className="demo-info">
+          当前 {data.length} 行 × {data[0]?.length ?? 0} 列
+        </span>
+      </div>
       <section className="sheet-stage" aria-label="Excel style table">
-        <ExcelGrid />
+        <ExcelGrid data={data} />
       </section>
     </main>
   );
 }
 
-function ExcelGrid() {
-  const [rows, setRows] = useState(createInitialRows);
+function ExcelGrid({ data }) {
+  const rowCount = data.length;
+  const colCount = data[0]?.length ?? 0;
+
+  const [rows, setRows] = useState(data);
   const [colWidths, setColWidths] = useState(() =>
-    Array.from({ length: COL_COUNT }, () => DEFAULT_COL_WIDTH)
+    Array.from({ length: colCount }, () => DEFAULT_COL_WIDTH)
   );
   const [rowHeights, setRowHeights] = useState(() =>
-    Array.from({ length: ROW_COUNT }, () => DEFAULT_ROW_HEIGHT)
+    Array.from({ length: rowCount }, () => DEFAULT_ROW_HEIGHT)
   );
   const [formulaHeight, setFormulaHeight] = useState(DEFAULT_FORMULA_HEIGHT);
   const [freezeRowsSpec, setFreezeRowsSpec] = useState("");
@@ -260,6 +318,7 @@ function ExcelGrid() {
   const [dragSelection, setDragSelection] = useState(null);
   const [fillState, setFillState] = useState(null);
   const [resizeState, setResizeState] = useState(null);
+  const [scrollTop, setScrollTop] = useState(0);
   const gridRef = useRef(null);
   const editorRef = useRef(null);
 
@@ -277,26 +336,14 @@ function ExcelGrid() {
     );
   }, [fillState]);
 
-  const gridStyle = useMemo(
-    () => ({
-      gridTemplateColumns: `${ROW_HEADER_WIDTH}px ${colWidths
-        .map((width) => `${width}px`)
-        .join(" ")}`,
-      gridTemplateRows: `${COL_HEADER_HEIGHT}px ${rowHeights
-        .map((height) => `${height}px`)
-        .join(" ")}`
-    }),
-    [colWidths, rowHeights]
-  );
-
   const frozenRows = useMemo(
-    () => parseFreezeSpec(freezeRowsSpec, ROW_COUNT - 1, parseRowToken),
-    [freezeRowsSpec]
+    () => parseFreezeSpec(freezeRowsSpec, rowCount - 1, parseRowToken),
+    [freezeRowsSpec, rowCount]
   );
 
   const frozenCols = useMemo(
-    () => parseFreezeSpec(freezeColsSpec, COL_COUNT - 1, parseColumnToken),
-    [freezeColsSpec]
+    () => parseFreezeSpec(freezeColsSpec, colCount - 1, parseColumnToken),
+    [freezeColsSpec, colCount]
   );
 
   const frozenRowOffsets = useMemo(
@@ -309,8 +356,94 @@ function ExcelGrid() {
     [frozenCols, colWidths]
   );
 
+  const frozenRowSet = useMemo(() => new Set(frozenRows), [frozenRows]);
+  const frozenColSet = useMemo(() => new Set(frozenCols), [frozenCols]);
+
   const lastFrozenRow = frozenRows[frozenRows.length - 1] ?? null;
   const lastFrozenCol = frozenCols[frozenCols.length - 1] ?? null;
+
+  const visibleRowRange = useMemo(() => {
+    let offset = COL_HEADER_HEIGHT;
+    let firstVisible = 0;
+    for (let r = 0; r < rowCount; r += 1) {
+      const h = rowHeights[r] ?? DEFAULT_ROW_HEIGHT;
+      if (offset + h > scrollTop) {
+        firstVisible = r;
+        break;
+      }
+      offset += h;
+      firstVisible = r + 1;
+    }
+
+    const first = Math.max(0, firstVisible - ROW_BUFFER);
+
+    offset = COL_HEADER_HEIGHT;
+    const viewportHeight = gridRef.current?.clientHeight ?? 800;
+    for (let r = 0; r < first; r += 1) {
+      offset += rowHeights[r] ?? DEFAULT_ROW_HEIGHT;
+    }
+    let last = first;
+    for (let r = first; r < rowCount; r += 1) {
+      offset += rowHeights[r] ?? DEFAULT_ROW_HEIGHT;
+      last = r;
+      if (offset > scrollTop + viewportHeight + ROW_BUFFER * DEFAULT_ROW_HEIGHT) break;
+    }
+
+    return { first: clamp(first, 0, rowCount - 1), last: clamp(last, 0, rowCount - 1) };
+  }, [scrollTop, rowHeights, rowCount]);
+
+  const topSpacerHeight = useMemo(
+    () => sumSizes(rowHeights, 0, visibleRowRange.first),
+    [rowHeights, visibleRowRange.first]
+  );
+
+  const bottomSpacerHeight = useMemo(
+    () => sumSizes(rowHeights, visibleRowRange.last + 1, rowCount),
+    [rowHeights, visibleRowRange.last, rowCount]
+  );
+
+  const spacerRow1 = topSpacerHeight > 0 ? 1 : 0;
+  const visibleRowGridStart = 2 + spacerRow1;
+
+  const gridStyle = useMemo(
+    () => {
+      const cols = [`${ROW_HEADER_WIDTH}px`];
+      for (let c = 0; c < colCount; c += 1) {
+        cols.push(`${colWidths[c] ?? DEFAULT_COL_WIDTH}px`);
+      }
+
+      const rows = [`${COL_HEADER_HEIGHT}px`];
+      if (topSpacerHeight > 0) rows.push(`${topSpacerHeight}px`);
+      for (let r = visibleRowRange.first; r <= visibleRowRange.last; r += 1) {
+        rows.push(`${rowHeights[r] ?? DEFAULT_ROW_HEIGHT}px`);
+      }
+      if (bottomSpacerHeight > 0) rows.push(`${bottomSpacerHeight}px`);
+
+      return {
+        gridTemplateColumns: cols.join(" "),
+        gridTemplateRows: rows.join(" ")
+      };
+    },
+    [colWidths, rowHeights, colCount, visibleRowRange, topSpacerHeight, bottomSpacerHeight]
+  );
+
+  useEffect(() => {
+    if (data !== rows) {
+      setRows(data);
+    }
+  }, [data]);
+
+  useEffect(() => {
+    if (colCount !== colWidths.length) {
+      setColWidths(Array.from({ length: colCount }, () => DEFAULT_COL_WIDTH));
+    }
+  }, [colCount]);
+
+  useEffect(() => {
+    if (rowCount !== rowHeights.length) {
+      setRowHeights(Array.from({ length: rowCount }, () => DEFAULT_ROW_HEIGHT));
+    }
+  }, [rowCount]);
 
   useEffect(() => {
     if (editingCell && editorRef.current) {
@@ -448,8 +581,14 @@ function ExcelGrid() {
   function selectAllCells() {
     setActiveCell({ row: 0, col: 0 });
     setSelectionAnchor({ row: 0, col: 0 });
-    setSelectionFocus({ row: ROW_COUNT - 1, col: COL_COUNT - 1 });
+    setSelectionFocus({ row: rowCount - 1, col: colCount - 1 });
     gridRef.current?.focus();
+  }
+
+  function handleScroll() {
+    if (gridRef.current) {
+      setScrollTop(gridRef.current.scrollTop);
+    }
   }
 
   function handleFreezeRowsChange(event) {
@@ -469,7 +608,10 @@ function ExcelGrid() {
   }
 
   function getRowHeaderStyle(row) {
-    const style = { gridRow: row + 2 };
+    const gridRow = row >= visibleRowRange.first
+      ? visibleRowGridStart + row - visibleRowRange.first
+      : 0;
+    const style = { gridRow };
     if (frozenRowOffsets.has(row)) {
       style.top = `${frozenRowOffsets.get(row)}px`;
     }
@@ -477,7 +619,10 @@ function ExcelGrid() {
   }
 
   function getCellStyle(row, col) {
-    const style = { gridColumn: col + 2, gridRow: row + 2 };
+    const gridRow = row >= visibleRowRange.first
+      ? visibleRowGridStart + row - visibleRowRange.first
+      : 0;
+    const style = { gridColumn: col + 2, gridRow };
     if (frozenRowOffsets.has(row)) {
       style.top = `${frozenRowOffsets.get(row)}px`;
     }
@@ -494,7 +639,7 @@ function ExcelGrid() {
     const anchorCol = event.shiftKey ? selectionRange.startCol : col;
     setActiveCell({ row: 0, col });
     setSelectionAnchor({ row: 0, col: anchorCol });
-    setSelectionFocus({ row: ROW_COUNT - 1, col });
+    setSelectionFocus({ row: rowCount - 1, col });
     setDragSelection("col");
     gridRef.current?.focus();
   }
@@ -502,7 +647,7 @@ function ExcelGrid() {
   function handleColumnHeaderPointerEnter(col) {
     if (dragSelection !== "col") return;
     setActiveCell({ row: 0, col });
-    setSelectionFocus({ row: ROW_COUNT - 1, col });
+    setSelectionFocus({ row: rowCount - 1, col });
   }
 
   function handleRowHeaderPointerDown(event, row) {
@@ -512,7 +657,7 @@ function ExcelGrid() {
     const anchorRow = event.shiftKey ? selectionRange.startRow : row;
     setActiveCell({ row, col: 0 });
     setSelectionAnchor({ row: anchorRow, col: 0 });
-    setSelectionFocus({ row, col: COL_COUNT - 1 });
+    setSelectionFocus({ row, col: colCount - 1 });
     setDragSelection("row");
     gridRef.current?.focus();
   }
@@ -520,7 +665,7 @@ function ExcelGrid() {
   function handleRowHeaderPointerEnter(row) {
     if (dragSelection !== "row") return;
     setActiveCell({ row, col: 0 });
-    setSelectionFocus({ row, col: COL_COUNT - 1 });
+    setSelectionFocus({ row, col: colCount - 1 });
   }
 
   function startColumnResize(event, index) {
@@ -621,8 +766,8 @@ function ExcelGrid() {
     applyClipboardTable(start, table);
     setSelectionAnchor(start);
     setSelectionFocus({
-      row: clamp(start.row + table.length - 1, 0, ROW_COUNT - 1),
-      col: clamp(start.col + Math.max(...table.map((line) => line.length)) - 1, 0, COL_COUNT - 1)
+      row: clamp(start.row + table.length - 1, 0, rowCount - 1),
+      col: clamp(start.col + Math.max(...table.map((line) => line.length)) - 1, 0, colCount - 1)
     });
   }
 
@@ -637,7 +782,7 @@ function ExcelGrid() {
       } else if (event.key === "Enter") {
         event.preventDefault();
         commitEdit();
-        selectCell(clamp(editingCell.row + 1, 0, ROW_COUNT - 1), editingCell.col);
+        selectCell(clamp(editingCell.row + 1, 0, rowCount - 1), editingCell.col);
       }
       return;
     }
@@ -666,10 +811,10 @@ function ExcelGrid() {
       return;
     }
 
-    if (event.key === "ArrowUp") next.row = clamp(activeCell.row - 1, 0, ROW_COUNT - 1);
-    else if (event.key === "ArrowDown") next.row = clamp(activeCell.row + 1, 0, ROW_COUNT - 1);
-    else if (event.key === "ArrowLeft") next.col = clamp(activeCell.col - 1, 0, COL_COUNT - 1);
-    else if (event.key === "ArrowRight") next.col = clamp(activeCell.col + 1, 0, COL_COUNT - 1);
+    if (event.key === "ArrowUp") next.row = clamp(activeCell.row - 1, 0, rowCount - 1);
+    else if (event.key === "ArrowDown") next.row = clamp(activeCell.row + 1, 0, rowCount - 1);
+    else if (event.key === "ArrowLeft") next.col = clamp(activeCell.col - 1, 0, colCount - 1);
+    else if (event.key === "ArrowRight") next.col = clamp(activeCell.col + 1, 0, colCount - 1);
     else return;
 
     event.preventDefault();
@@ -678,10 +823,12 @@ function ExcelGrid() {
 
   const activeAddress = `${columnName(activeCell.col)}${activeCell.row + 1}`;
   const isFullRowSelection =
-    selectionRange.startCol === 0 && selectionRange.endCol === COL_COUNT - 1;
+    selectionRange.startCol === 0 && selectionRange.endCol === colCount - 1;
   const isFullColumnSelection =
-    selectionRange.startRow === 0 && selectionRange.endRow === ROW_COUNT - 1;
+    selectionRange.startRow === 0 && selectionRange.endRow === rowCount - 1;
   const isAllCellsSelected = isFullRowSelection && isFullColumnSelection;
+  const activeRowData = rows[activeCell.row] ?? [];
+  const activeCellValue = activeRowData[activeCell.col] ?? "";
 
   return (
     <div className="workbook" style={{ "--formula-height": `${formulaHeight}px` }}>
@@ -707,9 +854,9 @@ function ExcelGrid() {
             />
           </label>
         </div>
-        <div className="formula-box" title={rows[activeCell.row][activeCell.col]}>
+        <div className="formula-box" title={activeCellValue}>
           <div className="formula-content">
-            {rows[activeCell.row][activeCell.col] || "\u00a0"}
+            {activeCellValue || "\u00a0"}
           </div>
           <button
             className="formula-resizer"
@@ -728,6 +875,7 @@ function ExcelGrid() {
         onCut={handleCut}
         onPaste={handlePaste}
         onKeyDown={handleKeyDown}
+        onScroll={handleScroll}
         aria-label="Spreadsheet"
       >
         <div className="sheet-grid" style={gridStyle}>
@@ -738,7 +886,7 @@ function ExcelGrid() {
             tabIndex={-1}
           />
 
-          {Array.from({ length: COL_COUNT }, (_, col) => (
+          {Array.from({ length: colCount }, (_, col) => (
             <div
               className={[
                 "column-header",
@@ -765,91 +913,112 @@ function ExcelGrid() {
             </div>
           ))}
 
-          {Array.from({ length: ROW_COUNT }, (_, row) => (
-            <div
-              className={[
-                "row-header",
-                frozenRowOffsets.has(row) ? "is-frozen-row" : "",
-                row === lastFrozenRow ? "is-freeze-row-edge" : "",
-                isFullRowSelection &&
-                row >= selectionRange.startRow &&
-                row <= selectionRange.endRow
-                  ? "is-selected"
-                  : ""
-              ].join(" ")}
-              key={`row-${row}`}
-              onPointerDown={(event) => handleRowHeaderPointerDown(event, row)}
-              onPointerEnter={() => handleRowHeaderPointerEnter(row)}
-              style={getRowHeaderStyle(row)}
-            >
-              <span>{row + 1}</span>
-              <button
-                className="row-resizer"
-                aria-label={`调整第 ${row + 1} 行高`}
-                onPointerDown={(event) => startRowResize(event, row)}
-                type="button"
-              />
-            </div>
-          ))}
+          {topSpacerHeight > 0 ? (
+            <div className="spacer-cell" style={{ gridColumn: 1, gridRow: 2, height: `${topSpacerHeight}px` }} />
+          ) : null}
 
-          {rows.map((rowData, row) =>
-            rowData.map((value, col) => {
-              const selected = isInsideRange(row, col, selectionRange);
-              const active = row === activeCell.row && col === activeCell.col;
-              const editing = editingCell?.row === row && editingCell?.col === col;
-              const frozenRow = frozenRowOffsets.has(row);
-              const frozenCol = frozenColOffsets.has(col);
-              const fillPreview = previewFillRange && isInsideRange(row, col, previewFillRange);
-              const isFillHandle =
-                row === selectionRange.endRow &&
-                col === selectionRange.endCol &&
-                !editingCell;
-
+          {Array.from(
+            { length: visibleRowRange.last - visibleRowRange.first + 1 },
+            (_, offset) => {
+              const row = visibleRowRange.first + offset;
               return (
                 <div
                   className={[
-                    "sheet-cell",
-                    selected ? "is-selected" : "",
-                    active ? "is-active" : "",
-                    editing ? "is-editing" : "",
-                    frozenRow ? "is-frozen-row" : "",
-                    frozenCol ? "is-frozen-col" : "",
-                    frozenRow && frozenCol ? "is-frozen-corner" : "",
+                    "row-header",
+                    frozenRowOffsets.has(row) ? "is-frozen-row" : "",
                     row === lastFrozenRow ? "is-freeze-row-edge" : "",
-                    col === lastFrozenCol ? "is-freeze-col-edge" : "",
-                    fillPreview ? "is-fill-preview" : ""
+                    isFullRowSelection &&
+                    row >= selectionRange.startRow &&
+                    row <= selectionRange.endRow
+                      ? "is-selected"
+                      : ""
                   ].join(" ")}
-                  key={`${row}-${col}`}
-                  onDoubleClick={() => startEdit(row, col)}
-                  onPointerDown={(event) => handleCellPointerDown(event, row, col)}
-                  onPointerEnter={() => handleCellPointerEnter(row, col)}
-                  role="gridcell"
-                  style={getCellStyle(row, col)}
+                  key={`row-${row}`}
+                  onPointerDown={(event) => handleRowHeaderPointerDown(event, row)}
+                  onPointerEnter={() => handleRowHeaderPointerEnter(row)}
+                  style={getRowHeaderStyle(row)}
                 >
-                  {editing ? (
-                    <textarea
-                      ref={editorRef}
-                      className="cell-editor"
-                      value={draftValue}
-                      onBlur={commitEdit}
-                      onChange={(event) => setDraftValue(event.target.value)}
-                      onPointerDown={(event) => event.stopPropagation()}
-                    />
-                  ) : (
-                    <div className="cell-content">{value}</div>
-                  )}
-                  {isFillHandle ? (
-                    <button
-                      className="fill-handle"
-                      aria-label="拖拽复制选区内容"
-                      onPointerDown={handleFillPointerDown}
-                      type="button"
-                    />
-                  ) : null}
+                  <span>{row + 1}</span>
+                  <button
+                    className="row-resizer"
+                    aria-label={`调整第 ${row + 1} 行高`}
+                    onPointerDown={(event) => startRowResize(event, row)}
+                    type="button"
+                  />
                 </div>
               );
-            })
+            }
           )}
+
+          {Array.from(
+            { length: visibleRowRange.last - visibleRowRange.first + 1 },
+            (_, offset) => {
+              const row = visibleRowRange.first + offset;
+              const rowData = rows[row] ?? [];
+
+              return Array.from({ length: colCount }, (_, col) => {
+                const value = rowData[col] ?? "";
+                const selected = isInsideRange(row, col, selectionRange);
+                const active = row === activeCell.row && col === activeCell.col;
+                const editing = editingCell?.row === row && editingCell?.col === col;
+                const frozenRow = frozenRowSet.has(row);
+                const frozenCol = frozenColSet.has(col);
+                const fillPreview = previewFillRange && isInsideRange(row, col, previewFillRange);
+                const isFillHandle =
+                  row === selectionRange.endRow &&
+                  col === selectionRange.endCol &&
+                  !editingCell;
+
+                return (
+                  <div
+                    className={[
+                      "sheet-cell",
+                      selected ? "is-selected" : "",
+                      active ? "is-active" : "",
+                      editing ? "is-editing" : "",
+                      frozenRow ? "is-frozen-row" : "",
+                      frozenCol ? "is-frozen-col" : "",
+                      frozenRow && frozenCol ? "is-frozen-corner" : "",
+                      row === lastFrozenRow ? "is-freeze-row-edge" : "",
+                      col === lastFrozenCol ? "is-freeze-col-edge" : "",
+                      fillPreview ? "is-fill-preview" : ""
+                    ].join(" ")}
+                    key={`${row}-${col}`}
+                    onDoubleClick={() => startEdit(row, col)}
+                    onPointerDown={(event) => handleCellPointerDown(event, row, col)}
+                    onPointerEnter={() => handleCellPointerEnter(row, col)}
+                    role="gridcell"
+                    style={getCellStyle(row, col)}
+                  >
+                    {editing ? (
+                      <textarea
+                        ref={editorRef}
+                        className="cell-editor"
+                        value={draftValue}
+                        onBlur={commitEdit}
+                        onChange={(event) => setDraftValue(event.target.value)}
+                        onPointerDown={(event) => event.stopPropagation()}
+                      />
+                    ) : (
+                      <div className="cell-content">{value}</div>
+                    )}
+                    {isFillHandle ? (
+                      <button
+                        className="fill-handle"
+                        aria-label="拖拽复制选区内容"
+                        onPointerDown={handleFillPointerDown}
+                        type="button"
+                      />
+                    ) : null}
+                  </div>
+                );
+              });
+            }
+          )}
+
+          {bottomSpacerHeight > 0 ? (
+            <div className="spacer-cell" style={{ gridColumn: 1, gridRow: visibleRowGridStart + (visibleRowRange.last - visibleRowRange.first + 1), height: `${bottomSpacerHeight}px` }} />
+          ) : null}
         </div>
       </div>
     </div>

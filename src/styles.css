@@ -28,6 +28,59 @@ textarea {
 }
 
 .sheet-stage {
+
+.demo-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(40, 48, 63, 0.08);
+  font-size: 13px;
+  color: #4c5968;
+  flex-wrap: wrap;
+}
+
+.demo-controls label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.demo-controls input {
+  width: 72px;
+  height: 28px;
+  border: 1px solid #cfd6e0;
+  border-radius: 4px;
+  padding: 0 6px;
+  color: #202124;
+  text-align: center;
+}
+
+.demo-controls button {
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid #cfd6e0;
+  border-radius: 4px;
+  background: #f3f6fa;
+  color: #202124;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.demo-controls button:hover {
+  background: #e6ebf2;
+}
+
+.demo-info {
+  color: #8b95a5;
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
   width: min(100%, 1480px);
   margin: 0 auto;
 }
