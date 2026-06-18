@@ -94,12 +94,12 @@ textarea {
 }
 
 .freeze-field input {
-  width: 46px;
+  width: 104px;
   height: 24px;
   border: 1px solid #cfd6e0;
   border-radius: 4px;
   color: #202124;
-  text-align: center;
+  padding: 0 7px;
 }
 
 .formula-box {
@@ -217,6 +217,14 @@ textarea {
 
 .row-header.is-frozen-row {
   z-index: 6;
+}
+
+.column-header.is-freeze-col-edge {
+  box-shadow: inset -2px 0 0 #a8b0bd;
+}
+
+.row-header.is-freeze-row-edge {
+  box-shadow: inset 0 -2px 0 #a8b0bd;
 }
 
 .col-resizer,

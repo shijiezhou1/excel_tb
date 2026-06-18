@@ -13,8 +13,6 @@ const COL_HEADER_HEIGHT = 34;
 const DEFAULT_FORMULA_HEIGHT = 34;
 const MIN_FORMULA_HEIGHT = 34;
 const MAX_FORMULA_HEIGHT = 220;
-const MAX_FREEZE_ROWS = 10;
-const MAX_FREEZE_COLS = 10;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -29,6 +27,18 @@ function columnName(index) {
   }
 
   return label;
+}
+
+function columnIndexFromLabel(label) {
+  const value = label.trim().toUpperCase();
+  if (/^\d+$/.test(value)) return Number(value) - 1;
+  if (!/^[A-Z]+$/.test(value)) return null;
+
+  let index = 0;
+  for (const letter of value) {
+    index = index * 26 + letter.charCodeAt(0) - 64;
+  }
+  return index - 1;
 }
 
 function createInitialRows() {
@@ -143,12 +153,60 @@ function parseClipboardTable(text) {
   return rows;
 }
 
-function offsetForIndex(sizes, index, baseOffset) {
+function parseFreezeSpec(spec, maxIndex, parseToken) {
+  const indexes = new Set();
+  const tokens = spec
+    .split(/[,，;；\s]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  tokens.forEach((token) => {
+    const rangeParts = token.split(/[:-]/).map((part) => part.trim()).filter(Boolean);
+    if (rangeParts.length === 2) {
+      const start = parseToken(rangeParts[0]);
+      const end = parseToken(rangeParts[1]);
+      if (start === null || end === null) return;
+
+      const low = clamp(Math.min(start, end), 0, maxIndex);
+      const high = clamp(Math.max(start, end), 0, maxIndex);
+      for (let index = low; index <= high; index += 1) {
+        indexes.add(index);
+      }
+      return;
+    }
+
+    const index = parseToken(token);
+    if (index !== null && index >= 0 && index <= maxIndex) {
+      indexes.add(index);
+    }
+  });
+
+  return Array.from(indexes).sort((a, b) => a - b);
+}
+
+function buildPinnedOffsets(indexes, sizes, baseOffset) {
+  const offsets = new Map();
   let offset = baseOffset;
-  for (let current = 0; current < index; current += 1) {
-    offset += sizes[current];
+
+  indexes.forEach((index) => {
+    offsets.set(index, offset);
+    offset += sizes[index];
+  });
+
+  return offsets;
+}
+
+function parseRowToken(token) {
+  if (!/^\d+$/.test(token)) return null;
+  return Number(token) - 1;
+}
+
+function parseColumnToken(token) {
+  const index = columnIndexFromLabel(token);
+  if (index === null || Number.isNaN(index)) {
+    return null;
   }
-  return offset;
+  return index;
 }
 
 function App() {
@@ -170,8 +228,8 @@ function ExcelGrid() {
     Array.from({ length: ROW_COUNT }, () => DEFAULT_ROW_HEIGHT)
   );
   const [formulaHeight, setFormulaHeight] = useState(DEFAULT_FORMULA_HEIGHT);
-  const [freezeRows, setFreezeRows] = useState(0);
-  const [freezeCols, setFreezeCols] = useState(0);
+  const [freezeRowsSpec, setFreezeRowsSpec] = useState("");
+  const [freezeColsSpec, setFreezeColsSpec] = useState("");
   const [activeCell, setActiveCell] = useState({ row: 1, col: 0 });
   const [selectionAnchor, setSelectionAnchor] = useState({ row: 1, col: 0 });
   const [selectionFocus, setSelectionFocus] = useState({ row: 1, col: 0 });
@@ -208,6 +266,29 @@ function ExcelGrid() {
     }),
     [colWidths, rowHeights]
   );
+
+  const frozenRows = useMemo(
+    () => parseFreezeSpec(freezeRowsSpec, ROW_COUNT - 1, parseRowToken),
+    [freezeRowsSpec]
+  );
+
+  const frozenCols = useMemo(
+    () => parseFreezeSpec(freezeColsSpec, COL_COUNT - 1, parseColumnToken),
+    [freezeColsSpec]
+  );
+
+  const frozenRowOffsets = useMemo(
+    () => buildPinnedOffsets(frozenRows, rowHeights, COL_HEADER_HEIGHT),
+    [frozenRows, rowHeights]
+  );
+
+  const frozenColOffsets = useMemo(
+    () => buildPinnedOffsets(frozenCols, colWidths, ROW_HEADER_WIDTH),
+    [frozenCols, colWidths]
+  );
+
+  const lastFrozenRow = frozenRows[frozenRows.length - 1] ?? null;
+  const lastFrozenCol = frozenCols[frozenCols.length - 1] ?? null;
 
   useEffect(() => {
     if (editingCell && editorRef.current) {
@@ -350,36 +431,36 @@ function ExcelGrid() {
   }
 
   function handleFreezeRowsChange(event) {
-    setFreezeRows(clamp(Number(event.target.value) || 0, 0, Math.min(MAX_FREEZE_ROWS, ROW_COUNT - 1)));
+    setFreezeRowsSpec(event.target.value);
   }
 
   function handleFreezeColsChange(event) {
-    setFreezeCols(clamp(Number(event.target.value) || 0, 0, Math.min(MAX_FREEZE_COLS, COL_COUNT - 1)));
+    setFreezeColsSpec(event.target.value);
   }
 
   function getColumnHeaderStyle(col) {
     const style = { gridColumn: col + 2 };
-    if (col < freezeCols) {
-      style.left = `${offsetForIndex(colWidths, col, ROW_HEADER_WIDTH)}px`;
+    if (frozenColOffsets.has(col)) {
+      style.left = `${frozenColOffsets.get(col)}px`;
     }
     return style;
   }
 
   function getRowHeaderStyle(row) {
     const style = { gridRow: row + 2 };
-    if (row < freezeRows) {
-      style.top = `${offsetForIndex(rowHeights, row, COL_HEADER_HEIGHT)}px`;
+    if (frozenRowOffsets.has(row)) {
+      style.top = `${frozenRowOffsets.get(row)}px`;
     }
     return style;
   }
 
   function getCellStyle(row, col) {
     const style = { gridColumn: col + 2, gridRow: row + 2 };
-    if (row < freezeRows) {
-      style.top = `${offsetForIndex(rowHeights, row, COL_HEADER_HEIGHT)}px`;
+    if (frozenRowOffsets.has(row)) {
+      style.top = `${frozenRowOffsets.get(row)}px`;
     }
-    if (col < freezeCols) {
-      style.left = `${offsetForIndex(colWidths, col, ROW_HEADER_WIDTH)}px`;
+    if (frozenColOffsets.has(col)) {
+      style.left = `${frozenColOffsets.get(col)}px`;
     }
     return style;
   }
@@ -586,20 +667,18 @@ function ExcelGrid() {
           <label className="freeze-field">
             <span>冻结行</span>
             <input
-              type="number"
-              min="0"
-              max={Math.min(MAX_FREEZE_ROWS, ROW_COUNT - 1)}
-              value={freezeRows}
+              type="text"
+              placeholder="1,3 或 1-3"
+              value={freezeRowsSpec}
               onChange={handleFreezeRowsChange}
             />
           </label>
           <label className="freeze-field">
             <span>冻结列</span>
             <input
-              type="number"
-              min="0"
-              max={Math.min(MAX_FREEZE_COLS, COL_COUNT - 1)}
-              value={freezeCols}
+              type="text"
+              placeholder="C,D 或 C:D"
+              value={freezeColsSpec}
               onChange={handleFreezeColsChange}
             />
           </label>
@@ -639,7 +718,8 @@ function ExcelGrid() {
             <div
               className={[
                 "column-header",
-                col < freezeCols ? "is-frozen-col" : "",
+                frozenColOffsets.has(col) ? "is-frozen-col" : "",
+                col === lastFrozenCol ? "is-freeze-col-edge" : "",
                 isFullColumnSelection &&
                 col >= selectionRange.startCol &&
                 col <= selectionRange.endCol
@@ -665,7 +745,8 @@ function ExcelGrid() {
             <div
               className={[
                 "row-header",
-                row < freezeRows ? "is-frozen-row" : "",
+                frozenRowOffsets.has(row) ? "is-frozen-row" : "",
+                row === lastFrozenRow ? "is-freeze-row-edge" : "",
                 isFullRowSelection &&
                 row >= selectionRange.startRow &&
                 row <= selectionRange.endRow
@@ -692,8 +773,8 @@ function ExcelGrid() {
               const selected = isInsideRange(row, col, selectionRange);
               const active = row === activeCell.row && col === activeCell.col;
               const editing = editingCell?.row === row && editingCell?.col === col;
-              const frozenRow = row < freezeRows;
-              const frozenCol = col < freezeCols;
+              const frozenRow = frozenRowOffsets.has(row);
+              const frozenCol = frozenColOffsets.has(col);
               const fillPreview = previewFillRange && isInsideRange(row, col, previewFillRange);
               const isFillHandle =
                 row === selectionRange.endRow &&
@@ -710,8 +791,8 @@ function ExcelGrid() {
                     frozenRow ? "is-frozen-row" : "",
                     frozenCol ? "is-frozen-col" : "",
                     frozenRow && frozenCol ? "is-frozen-corner" : "",
-                    row === freezeRows - 1 ? "is-freeze-row-edge" : "",
-                    col === freezeCols - 1 ? "is-freeze-col-edge" : "",
+                    row === lastFrozenRow ? "is-freeze-row-edge" : "",
+                    col === lastFrozenCol ? "is-freeze-col-edge" : "",
                     fillPreview ? "is-fill-preview" : ""
                   ].join(" ")}
                   key={`${row}-${col}`}
