@@ -99,7 +99,7 @@ textarea {
 
 .formula-strip {
   display: grid;
-  grid-template-columns: 112px auto minmax(0, 1fr) auto;
+  grid-template-columns: 112px auto minmax(0, 1fr) auto auto auto;
   gap: 8px;
   align-items: start;
   padding: 8px;
@@ -210,6 +210,23 @@ textarea {
 
 .export-btn:hover {
   background: #145231;
+}
+
+.toggle-btn {
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid #cfd6e0;
+  border-radius: 4px;
+  background: #f3f6fa;
+  color: #4c5968;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toggle-btn:hover {
+  background: #e6ebf2;
 }
 
 .grid-viewport {
@@ -465,7 +482,7 @@ textarea {
   }
 
   .formula-strip {
-    grid-template-columns: 84px minmax(0, 1fr);
+    grid-template-columns: 84px minmax(0, 1fr) auto auto;
   }
 
   .freeze-controls {

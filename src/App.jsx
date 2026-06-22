@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import * as XLSX from "xlsx";
 
 const DEFAULT_COL_WIDTH = 140;
@@ -48,7 +54,7 @@ function createDefaultRows(rowCount, colCount) {
         return columnName(colIndex);
       }
       return "";
-    })
+    }),
   );
 }
 
@@ -57,7 +63,7 @@ function normalizeRange(a, b) {
     startRow: Math.min(a.row, b.row),
     endRow: Math.max(a.row, b.row),
     startCol: Math.min(a.col, b.col),
-    endCol: Math.max(a.col, b.col)
+    endCol: Math.max(a.col, b.col),
   };
 }
 
@@ -147,7 +153,11 @@ function parseClipboardTable(text) {
 
   rows[rows.length - 1].push(cell.replace(/\r$/, ""));
 
-  if (rows.length > 1 && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") {
+  if (
+    rows.length > 1 &&
+    rows[rows.length - 1].length === 1 &&
+    rows[rows.length - 1][0] === ""
+  ) {
     rows.pop();
   }
 
@@ -162,7 +172,10 @@ function parseFreezeSpec(spec, maxIndex, parseToken) {
     .filter(Boolean);
 
   tokens.forEach((token) => {
-    const rangeParts = token.split(/[:-]/).map((part) => part.trim()).filter(Boolean);
+    const rangeParts = token
+      .split(/[:-]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
     if (rangeParts.length === 2) {
       const start = parseToken(rangeParts[0]);
       const end = parseToken(rangeParts[1]);
@@ -227,23 +240,34 @@ function generateDemoData(rowCount, colCount) {
         row.push(columnName(c));
       } else if (c === 0 && r < 8) {
         const labels = [
-          "项目A", "任务B", "指标C", "备注D",
-          "客户E", "订单F", "库存G", "总计H"
+          "项目A",
+          "任务B",
+          "指标C",
+          "备注D",
+          "客户E",
+          "订单F",
+          "库存G",
+          "总计H",
         ];
         row.push(labels[r - 1] || `行${r + 1}`);
       } else if (c < 5) {
         const vals = [
-          "已完成", "进行中", "待审核", "高优先级",
+          "已完成",
+          "进行中",
+          "待审核",
+          "高优先级非常长的文本示例 测试 换行显示 效果 高优先级非常长的文本示例 测试 换行显示 效果 高优先级非常长的文本示例 测试 换行显示 效果 高优先级非常长的文本示例 测试 换行显示 效果 高优先级非常长的文本示例 测试 换行显示 效果 高优先级非常长的文本示例 测试 换行显示 效果 高优先级非常长的文本示例 测试 换行显示 效果 高优先级非常长的文本示例 测试 换行显示 效果 高优先级非常长的文本示例 测试 换行显示 效果 ",
           Math.floor(Math.random() * 10000).toString(),
-          `值${r}-${c}`
+          `值${r}-${c}`,
         ];
         row.push(vals[Math.floor(Math.random() * vals.length)]);
       } else if (c === 4 && r < 4) {
         row.push("多行\n文本\n示例\n数据");
       } else {
-        row.push(Math.random() > 0.6
-          ? Math.floor(Math.random() * 5000).toString()
-          : "");
+        row.push(
+          Math.random() > 0.6
+            ? Math.floor(Math.random() * 5000).toString()
+            : "",
+        );
       }
     }
     rows.push(row);
@@ -251,6 +275,8 @@ function generateDemoData(rowCount, colCount) {
   return rows;
 }
 
+
+let measureCanvas = null;
 function App() {
   const [demoRows, setDemoRows] = useState(() => 100);
   const [demoCols, setDemoCols] = useState(() => 30);
@@ -270,7 +296,9 @@ function App() {
             min="1"
             max="2000"
             value={demoRows}
-            onChange={(e) => setDemoRows(Math.max(1, Number(e.target.value) || 1))}
+            onChange={(e) =>
+              setDemoRows(Math.max(1, Number(e.target.value) || 1))
+            }
           />
         </label>
         <label>
@@ -280,7 +308,9 @@ function App() {
             min="1"
             max="5000"
             value={demoCols}
-            onChange={(e) => setDemoCols(Math.max(1, Number(e.target.value) || 1))}
+            onChange={(e) =>
+              setDemoCols(Math.max(1, Number(e.target.value) || 1))
+            }
           />
         </label>
         <button type="button" onClick={applyDemoSize}>
@@ -303,12 +333,14 @@ function ExcelGrid({ data }) {
 
   const [rows, setRows] = useState(data);
   const [colWidths, setColWidths] = useState(() =>
-    Array.from({ length: colCount }, () => DEFAULT_COL_WIDTH)
+    Array.from({ length: colCount }, () => DEFAULT_COL_WIDTH),
   );
   const [rowHeights, setRowHeights] = useState(() =>
-    Array.from({ length: rowCount }, () => DEFAULT_ROW_HEIGHT)
+    Array.from({ length: rowCount }, () => DEFAULT_ROW_HEIGHT),
   );
   const [formulaHeight, setFormulaHeight] = useState(DEFAULT_FORMULA_HEIGHT);
+  const [rowsExpanded, setRowsExpanded] = useState(false);
+  const [colsExpanded, setColsExpanded] = useState(false);
   const [freezeRowsSpec, setFreezeRowsSpec] = useState("");
   const [freezeColsSpec, setFreezeColsSpec] = useState("");
   const [activeCell, setActiveCell] = useState({ row: 1, col: 0 });
@@ -326,7 +358,7 @@ function ExcelGrid({ data }) {
 
   const selectionRange = useMemo(
     () => normalizeRange(selectionAnchor, selectionFocus),
-    [selectionAnchor, selectionFocus]
+    [selectionAnchor, selectionFocus],
   );
 
   const previewFillRange = useMemo(() => {
@@ -334,28 +366,28 @@ function ExcelGrid({ data }) {
     const source = fillState.sourceRange;
     return normalizeRange(
       { row: source.startRow, col: source.startCol },
-      fillState.target
+      fillState.target,
     );
   }, [fillState]);
 
   const frozenRows = useMemo(
     () => parseFreezeSpec(freezeRowsSpec, rowCount - 1, parseRowToken),
-    [freezeRowsSpec, rowCount]
+    [freezeRowsSpec, rowCount],
   );
 
   const frozenCols = useMemo(
     () => parseFreezeSpec(freezeColsSpec, colCount - 1, parseColumnToken),
-    [freezeColsSpec, colCount]
+    [freezeColsSpec, colCount],
   );
 
   const frozenRowOffsets = useMemo(
     () => buildPinnedOffsets(frozenRows, rowHeights, COL_HEADER_HEIGHT),
-    [frozenRows, rowHeights]
+    [frozenRows, rowHeights],
   );
 
   const frozenColOffsets = useMemo(
     () => buildPinnedOffsets(frozenCols, colWidths, ROW_HEADER_WIDTH),
-    [frozenCols, colWidths]
+    [frozenCols, colWidths],
   );
 
   const frozenRowSet = useMemo(() => new Set(frozenRows), [frozenRows]);
@@ -388,46 +420,54 @@ function ExcelGrid({ data }) {
     for (let r = first; r < rowCount; r += 1) {
       offset += rowHeights[r] ?? DEFAULT_ROW_HEIGHT;
       last = r;
-      if (offset > scrollTop + viewportHeight + ROW_BUFFER * DEFAULT_ROW_HEIGHT) break;
+      if (offset > scrollTop + viewportHeight + ROW_BUFFER * DEFAULT_ROW_HEIGHT)
+        break;
     }
 
-    return { first: clamp(first, 0, rowCount - 1), last: clamp(last, 0, rowCount - 1) };
+    return {
+      first: clamp(first, 0, rowCount - 1),
+      last: clamp(last, 0, rowCount - 1),
+    };
   }, [scrollTop, rowHeights, rowCount]);
 
   const topSpacerHeight = useMemo(
     () => sumSizes(rowHeights, 0, visibleRowRange.first),
-    [rowHeights, visibleRowRange.first]
+    [rowHeights, visibleRowRange.first],
   );
 
   const bottomSpacerHeight = useMemo(
     () => sumSizes(rowHeights, visibleRowRange.last + 1, rowCount),
-    [rowHeights, visibleRowRange.last, rowCount]
+    [rowHeights, visibleRowRange.last, rowCount],
   );
 
   const spacerRow1 = topSpacerHeight > 0 ? 1 : 0;
   const visibleRowGridStart = 2 + spacerRow1;
 
-  const gridStyle = useMemo(
-    () => {
-      const cols = [`${ROW_HEADER_WIDTH}px`];
-      for (let c = 0; c < colCount; c += 1) {
-        cols.push(`${colWidths[c] ?? DEFAULT_COL_WIDTH}px`);
-      }
+  const gridStyle = useMemo(() => {
+    const cols = [`${ROW_HEADER_WIDTH}px`];
+    for (let c = 0; c < colCount; c += 1) {
+      cols.push(`${colWidths[c] ?? DEFAULT_COL_WIDTH}px`);
+    }
 
-      const rows = [`${COL_HEADER_HEIGHT}px`];
-      if (topSpacerHeight > 0) rows.push(`${topSpacerHeight}px`);
-      for (let r = visibleRowRange.first; r <= visibleRowRange.last; r += 1) {
-        rows.push(`${rowHeights[r] ?? DEFAULT_ROW_HEIGHT}px`);
-      }
-      if (bottomSpacerHeight > 0) rows.push(`${bottomSpacerHeight}px`);
+    const rows = [`${COL_HEADER_HEIGHT}px`];
+    if (topSpacerHeight > 0) rows.push(`${topSpacerHeight}px`);
+    for (let r = visibleRowRange.first; r <= visibleRowRange.last; r += 1) {
+      rows.push(`${rowHeights[r] ?? DEFAULT_ROW_HEIGHT}px`);
+    }
+    if (bottomSpacerHeight > 0) rows.push(`${bottomSpacerHeight}px`);
 
-      return {
-        gridTemplateColumns: cols.join(" "),
-        gridTemplateRows: rows.join(" ")
-      };
-    },
-    [colWidths, rowHeights, colCount, visibleRowRange, topSpacerHeight, bottomSpacerHeight]
-  );
+    return {
+      gridTemplateColumns: cols.join(" "),
+      gridTemplateRows: rows.join(" "),
+    };
+  }, [
+    colWidths,
+    rowHeights,
+    colCount,
+    visibleRowRange,
+    topSpacerHeight,
+    bottomSpacerHeight,
+  ]);
 
   useEffect(() => {
     if (data !== rows) {
@@ -468,7 +508,8 @@ function ExcelGrid({ data }) {
     for (let r = 0; r < activeCell.row; r += 1) {
       cellTop += rowHeights[r] ?? DEFAULT_ROW_HEIGHT;
     }
-    const cellBottom = cellTop + (rowHeights[activeCell.row] ?? DEFAULT_ROW_HEIGHT);
+    const cellBottom =
+      cellTop + (rowHeights[activeCell.row] ?? DEFAULT_ROW_HEIGHT);
 
     let targetScrollTop = currentScrollTop;
     if (cellTop < currentScrollTop) {
@@ -481,7 +522,8 @@ function ExcelGrid({ data }) {
     for (let c = 0; c < activeCell.col; c += 1) {
       cellLeft += colWidths[c] ?? DEFAULT_COL_WIDTH;
     }
-    const cellRight = cellLeft + (colWidths[activeCell.col] ?? DEFAULT_COL_WIDTH);
+    const cellRight =
+      cellLeft + (colWidths[activeCell.col] ?? DEFAULT_COL_WIDTH);
 
     let targetScrollLeft = currentScrollLeft;
     if (cellLeft < currentScrollLeft) {
@@ -506,26 +548,30 @@ function ExcelGrid({ data }) {
         const nextHeight = clamp(
           resizeState.startSize + event.clientY - resizeState.startPointer,
           MIN_FORMULA_HEIGHT,
-          MAX_FORMULA_HEIGHT
+          MAX_FORMULA_HEIGHT,
         );
         setFormulaHeight(nextHeight);
       } else if (resizeState.type === "col") {
         const nextWidth = clamp(
           resizeState.startSize + event.clientX - resizeState.startPointer,
           MIN_COL_WIDTH,
-          MAX_COL_WIDTH
+          MAX_COL_WIDTH,
         );
         setColWidths((current) =>
-          current.map((width, index) => (index === resizeState.index ? nextWidth : width))
+          current.map((width, index) =>
+            index === resizeState.index ? nextWidth : width,
+          ),
         );
       } else {
         const nextHeight = clamp(
           resizeState.startSize + event.clientY - resizeState.startPointer,
           MIN_ROW_HEIGHT,
-          MAX_ROW_HEIGHT
+          MAX_ROW_HEIGHT,
         );
         setRowHeights((current) =>
-          current.map((height, index) => (index === resizeState.index ? nextHeight : height))
+          current.map((height, index) =>
+            index === resizeState.index ? nextHeight : height,
+          ),
         );
       }
     }
@@ -562,9 +608,11 @@ function ExcelGrid({ data }) {
     setRows((current) =>
       current.map((row, rowIndex) =>
         rowIndex === editingCell.row
-          ? row.map((value, colIndex) => (colIndex === editingCell.col ? draftValue : value))
-          : row
-      )
+          ? row.map((value, colIndex) =>
+              colIndex === editingCell.col ? draftValue : value,
+            )
+          : row,
+      ),
     );
     setEditingCell(null);
   }, [draftValue, editingCell]);
@@ -584,15 +632,15 @@ function ExcelGrid({ data }) {
             return table[pastedRow][pastedCol];
           }
           return cell;
-        })
-      )
+        }),
+      ),
     );
   }, []);
 
   const applyFill = useCallback((sourceRange, target) => {
     const fillRange = normalizeRange(
       { row: sourceRange.startRow, col: sourceRange.startCol },
-      target
+      target,
     );
     const sourceRows = sourceRange.endRow - sourceRange.startRow + 1;
     const sourceCols = sourceRange.endCol - sourceRange.startCol + 1;
@@ -603,11 +651,15 @@ function ExcelGrid({ data }) {
           if (!isInsideRange(rowIndex, colIndex, fillRange)) return cell;
           if (isInsideRange(rowIndex, colIndex, sourceRange)) return cell;
 
-          const sourceRow = sourceRange.startRow + ((rowIndex - sourceRange.startRow) % sourceRows);
-          const sourceCol = sourceRange.startCol + ((colIndex - sourceRange.startCol) % sourceCols);
+          const sourceRow =
+            sourceRange.startRow +
+            ((rowIndex - sourceRange.startRow) % sourceRows);
+          const sourceCol =
+            sourceRange.startCol +
+            ((colIndex - sourceRange.startCol) % sourceCols);
           return current[sourceRow][sourceCol];
-        })
-      )
+        }),
+      ),
     );
     setSelectionAnchor({ row: fillRange.startRow, col: fillRange.startCol });
     setSelectionFocus({ row: fillRange.endRow, col: fillRange.endCol });
@@ -655,9 +707,10 @@ function ExcelGrid({ data }) {
   }
 
   function getRowHeaderStyle(row) {
-    const gridRow = row >= visibleRowRange.first
-      ? visibleRowGridStart + row - visibleRowRange.first
-      : 0;
+    const gridRow =
+      row >= visibleRowRange.first
+        ? visibleRowGridStart + row - visibleRowRange.first
+        : 0;
     const style = { gridRow };
     if (frozenRowOffsets.has(row)) {
       style.top = `${frozenRowOffsets.get(row)}px`;
@@ -666,9 +719,10 @@ function ExcelGrid({ data }) {
   }
 
   function getCellStyle(row, col) {
-    const gridRow = row >= visibleRowRange.first
-      ? visibleRowGridStart + row - visibleRowRange.first
-      : 0;
+    const gridRow =
+      row >= visibleRowRange.first
+        ? visibleRowGridStart + row - visibleRowRange.first
+        : 0;
     const style = { gridColumn: col + 2, gridRow };
     if (frozenRowOffsets.has(row)) {
       style.top = `${frozenRowOffsets.get(row)}px`;
@@ -722,7 +776,7 @@ function ExcelGrid({ data }) {
       type: "col",
       index,
       startPointer: event.clientX,
-      startSize: colWidths[index]
+      startSize: colWidths[index],
     });
   }
 
@@ -733,7 +787,7 @@ function ExcelGrid({ data }) {
       type: "row",
       index,
       startPointer: event.clientY,
-      startSize: rowHeights[index]
+      startSize: rowHeights[index],
     });
   }
 
@@ -743,7 +797,7 @@ function ExcelGrid({ data }) {
     setResizeState({
       type: "formula",
       startPointer: event.clientY,
-      startSize: formulaHeight
+      startSize: formulaHeight,
     });
   }
 
@@ -772,7 +826,9 @@ function ExcelGrid({ data }) {
     }
 
     if (fillState) {
-      setFillState((current) => (current ? { ...current, target: { row, col } } : null));
+      setFillState((current) =>
+        current ? { ...current, target: { row, col } } : null,
+      );
     }
   }
 
@@ -786,20 +842,26 @@ function ExcelGrid({ data }) {
     if (editingCell) return;
     event.preventDefault();
     event.clipboardData.setData("text/plain", rangeToTsv(rows, selectionRange));
-    event.clipboardData.setData("text/html", rangeToClipboardHtml(rows, selectionRange));
+    event.clipboardData.setData(
+      "text/html",
+      rangeToClipboardHtml(rows, selectionRange),
+    );
   }
 
   function handleCut(event) {
     if (editingCell) return;
     event.preventDefault();
     event.clipboardData.setData("text/plain", rangeToTsv(rows, selectionRange));
-    event.clipboardData.setData("text/html", rangeToClipboardHtml(rows, selectionRange));
+    event.clipboardData.setData(
+      "text/html",
+      rangeToClipboardHtml(rows, selectionRange),
+    );
     setRows((current) =>
       current.map((row, rowIndex) =>
         row.map((cell, colIndex) =>
-          isInsideRange(rowIndex, colIndex, selectionRange) ? "" : cell
-        )
-      )
+          isInsideRange(rowIndex, colIndex, selectionRange) ? "" : cell,
+        ),
+      ),
     );
   }
 
@@ -809,12 +871,19 @@ function ExcelGrid({ data }) {
     if (!text) return;
     event.preventDefault();
     const table = parseClipboardTable(text);
-    const start = { row: selectionRange.startRow, col: selectionRange.startCol };
+    const start = {
+      row: selectionRange.startRow,
+      col: selectionRange.startCol,
+    };
     applyClipboardTable(start, table);
     setSelectionAnchor(start);
     setSelectionFocus({
       row: clamp(start.row + table.length - 1, 0, rowCount - 1),
-      col: clamp(start.col + Math.max(...table.map((line) => line.length)) - 1, 0, colCount - 1)
+      col: clamp(
+        start.col + Math.max(...table.map((line) => line.length)) - 1,
+        0,
+        colCount - 1,
+      ),
     });
   }
 
@@ -829,7 +898,10 @@ function ExcelGrid({ data }) {
       } else if (event.key === "Enter") {
         event.preventDefault();
         commitEdit();
-        selectCell(clamp(editingCell.row + 1, 0, rowCount - 1), editingCell.col);
+        selectCell(
+          clamp(editingCell.row + 1, 0, rowCount - 1),
+          editingCell.col,
+        );
       }
       return;
     }
@@ -845,23 +917,32 @@ function ExcelGrid({ data }) {
       setRows((current) =>
         current.map((row, rowIndex) =>
           row.map((cell, colIndex) =>
-            isInsideRange(rowIndex, colIndex, selectionRange) ? "" : cell
-          )
-        )
+            isInsideRange(rowIndex, colIndex, selectionRange) ? "" : cell,
+          ),
+        ),
       );
       return;
     }
-    if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    if (
+      event.key.length === 1 &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey
+    ) {
       event.preventDefault();
       setDraftValue(event.key);
       setEditingCell(activeCell);
       return;
     }
 
-    if (event.key === "ArrowUp") next.row = clamp(activeCell.row - 1, 0, rowCount - 1);
-    else if (event.key === "ArrowDown") next.row = clamp(activeCell.row + 1, 0, rowCount - 1);
-    else if (event.key === "ArrowLeft") next.col = clamp(activeCell.col - 1, 0, colCount - 1);
-    else if (event.key === "ArrowRight") next.col = clamp(activeCell.col + 1, 0, colCount - 1);
+    if (event.key === "ArrowUp")
+      next.row = clamp(activeCell.row - 1, 0, rowCount - 1);
+    else if (event.key === "ArrowDown")
+      next.row = clamp(activeCell.row + 1, 0, rowCount - 1);
+    else if (event.key === "ArrowLeft")
+      next.col = clamp(activeCell.col - 1, 0, colCount - 1);
+    else if (event.key === "ArrowRight")
+      next.col = clamp(activeCell.col + 1, 0, colCount - 1);
     else return;
 
     event.preventDefault();
@@ -877,16 +958,103 @@ function ExcelGrid({ data }) {
   const activeRowData = rows[activeCell.row] ?? [];
   const activeCellValue = activeRowData[activeCell.col] ?? "";
 
+  const CELL_FONT = '13px Inter, "Segoe UI", "Microsoft YaHei", Arial, sans-serif';
+  const CELL_PAD_H = 9 + 9;
+  const CELL_LINE_H = 18;
+  const CELL_PAD_V = 7 + 7;
+
+  function getMeasureCtx() {
+    if (!measureCanvas) {
+      measureCanvas = document.createElement("canvas");
+    }
+    const ctx = measureCanvas.getContext("2d");
+    ctx.font = CELL_FONT;
+    return ctx;
+  }
+
+  function measureTextWidth(text) {
+    const ctx = getMeasureCtx();
+    let max = 0;
+    for (const line of text.split("\n")) {
+      const w = ctx.measureText(line).width;
+      if (w > max) max = w;
+    }
+    return Math.ceil(max);
+  }
+
+  function measureTextLines(text, maxWidth) {
+    const ctx = getMeasureCtx();
+    let lines = 0;
+    for (const para of text.split("\n")) {
+      if (!para) { lines += 1; continue; }
+      let cur = "";
+      for (let i = 0; i < para.length; i += 1) {
+        const test = cur + para[i];
+        if (ctx.measureText(test).width > maxWidth && cur.length > 0) {
+          lines += 1;
+          cur = para[i];
+        } else {
+          cur = test;
+        }
+      }
+      lines += 1;
+    }
+    return lines;
+  }
+
+  function toggleColsExpanded() {
+    if (colsExpanded) {
+      setColWidths(Array.from({ length: colCount }, () => DEFAULT_COL_WIDTH));
+    } else {
+      const newWidths = colWidths.map((_w, c) => {
+        let max = measureTextWidth(columnName(c));
+        for (let r = 1; r < rowCount; r += 1) {
+          const w = measureTextWidth(String(rows[r]?.[c] ?? ""));
+          if (w > max) max = w;
+        }
+        return clamp(max + CELL_PAD_H, MIN_COL_WIDTH, MAX_COL_WIDTH);
+      });
+      setColWidths(newWidths);
+    }
+    setColsExpanded((prev) => !prev);
+  }
+
+  function toggleRowsExpanded() {
+    if (rowsExpanded) {
+      setRowHeights(Array.from({ length: rowCount }, () => DEFAULT_ROW_HEIGHT));
+    } else {
+      const widths = colWidths;
+      const newHeights = rowHeights.map((_h, r) => {
+        const rowData = rows[r] ?? [];
+        let maxLines = 1;
+        for (let c = 1; c < colCount; c += 1) {
+          const text = String(rowData[c] ?? "");
+          const availW = (widths[c] ?? DEFAULT_COL_WIDTH) - CELL_PAD_H;
+          const lineCount = availW > 0 ? measureTextLines(text, availW) : text.split("\n").length;
+          if (lineCount > maxLines) maxLines = lineCount;
+        }
+        return clamp(maxLines * CELL_LINE_H + CELL_PAD_V, MIN_ROW_HEIGHT, MAX_ROW_HEIGHT);
+      });
+      setRowHeights(newHeights);
+    }
+    setRowsExpanded((prev) => !prev);
+  }
   function exportXlsx() {
     const aoa = rows.map((rowData) => rowData.map((value) => value ?? ""));
     const sheet = XLSX.utils.aoa_to_sheet(aoa);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Sheet1");
-    XLSX.writeFile(workbook, "export.xlsx", { bookType: "xlsx", type: "binary" });
+    XLSX.writeFile(workbook, "export.xlsx", {
+      bookType: "xlsx",
+      type: "binary",
+    });
   }
 
   return (
-    <div className="workbook" style={{ "--formula-height": `${formulaHeight}px` }}>
+    <div
+      className="workbook"
+      style={{ "--formula-height": `${formulaHeight}px` }}
+    >
       <div className="formula-strip">
         <div className="name-box">{activeAddress}</div>
         <div className="freeze-controls" aria-label="冻结窗格设置">
@@ -910,9 +1078,7 @@ function ExcelGrid({ data }) {
           </label>
         </div>
         <div className="formula-box" title={activeCellValue}>
-          <div className="formula-content">
-            {activeCellValue || "\u00a0"}
-          </div>
+          <div className="formula-content">{activeCellValue || "\u00a0"}</div>
           <button
             className="formula-resizer"
             aria-label="调整预览栏高度"
@@ -920,7 +1086,23 @@ function ExcelGrid({ data }) {
             type="button"
           />
         </div>
-        <button className="export-btn" type="button" onClick={exportXlsx}>导出 XLSX</button>
+        <button className="export-btn" type="button" onClick={exportXlsx}>
+          导出 XLSX
+        </button>
+        <button
+          className="toggle-btn"
+          type="button"
+          onClick={toggleRowsExpanded}
+        >
+          {rowsExpanded ? "收起行高" : "展开行高"}
+        </button>
+        <button
+          className="toggle-btn"
+          type="button"
+          onClick={toggleColsExpanded}
+        >
+          {colsExpanded ? "收起列宽" : "展开列宽"}
+        </button>
       </div>
 
       <div
@@ -952,10 +1134,12 @@ function ExcelGrid({ data }) {
                 col >= selectionRange.startCol &&
                 col <= selectionRange.endCol
                   ? "is-selected"
-                  : ""
+                  : "",
               ].join(" ")}
               key={`col-${col}`}
-              onPointerDown={(event) => handleColumnHeaderPointerDown(event, col)}
+              onPointerDown={(event) =>
+                handleColumnHeaderPointerDown(event, col)
+              }
               onPointerEnter={() => handleColumnHeaderPointerEnter(col)}
               style={getColumnHeaderStyle(col)}
             >
@@ -970,7 +1154,14 @@ function ExcelGrid({ data }) {
           ))}
 
           {topSpacerHeight > 0 ? (
-            <div className="spacer-cell" style={{ gridColumn: 1, gridRow: 2, height: `${topSpacerHeight}px` }} />
+            <div
+              className="spacer-cell"
+              style={{
+                gridColumn: 1,
+                gridRow: 2,
+                height: `${topSpacerHeight}px`,
+              }}
+            />
           ) : null}
 
           {Array.from(
@@ -987,10 +1178,12 @@ function ExcelGrid({ data }) {
                     row >= selectionRange.startRow &&
                     row <= selectionRange.endRow
                       ? "is-selected"
-                      : ""
+                      : "",
                   ].join(" ")}
                   key={`row-${row}`}
-                  onPointerDown={(event) => handleRowHeaderPointerDown(event, row)}
+                  onPointerDown={(event) =>
+                    handleRowHeaderPointerDown(event, row)
+                  }
                   onPointerEnter={() => handleRowHeaderPointerEnter(row)}
                   style={getRowHeaderStyle(row)}
                 >
@@ -1003,7 +1196,7 @@ function ExcelGrid({ data }) {
                   />
                 </div>
               );
-            }
+            },
           )}
 
           {Array.from(
@@ -1016,10 +1209,12 @@ function ExcelGrid({ data }) {
                 const value = rowData[col] ?? "";
                 const selected = isInsideRange(row, col, selectionRange);
                 const active = row === activeCell.row && col === activeCell.col;
-                const editing = editingCell?.row === row && editingCell?.col === col;
+                const editing =
+                  editingCell?.row === row && editingCell?.col === col;
                 const frozenRow = frozenRowSet.has(row);
                 const frozenCol = frozenColSet.has(col);
-                const fillPreview = previewFillRange && isInsideRange(row, col, previewFillRange);
+                const fillPreview =
+                  previewFillRange && isInsideRange(row, col, previewFillRange);
                 const isFillHandle =
                   row === selectionRange.endRow &&
                   col === selectionRange.endCol &&
@@ -1037,11 +1232,13 @@ function ExcelGrid({ data }) {
                       frozenRow && frozenCol ? "is-frozen-corner" : "",
                       row === lastFrozenRow ? "is-freeze-row-edge" : "",
                       col === lastFrozenCol ? "is-freeze-col-edge" : "",
-                      fillPreview ? "is-fill-preview" : ""
+                      fillPreview ? "is-fill-preview" : "",
                     ].join(" ")}
                     key={`${row}-${col}`}
                     onDoubleClick={() => startEdit(row, col)}
-                    onPointerDown={(event) => handleCellPointerDown(event, row, col)}
+                    onPointerDown={(event) =>
+                      handleCellPointerDown(event, row, col)
+                    }
                     onPointerEnter={() => handleCellPointerEnter(row, col)}
                     role="gridcell"
                     style={getCellStyle(row, col)}
@@ -1069,11 +1266,20 @@ function ExcelGrid({ data }) {
                   </div>
                 );
               });
-            }
+            },
           )}
 
           {bottomSpacerHeight > 0 ? (
-            <div className="spacer-cell" style={{ gridColumn: 1, gridRow: visibleRowGridStart + (visibleRowRange.last - visibleRowRange.first + 1), height: `${bottomSpacerHeight}px` }} />
+            <div
+              className="spacer-cell"
+              style={{
+                gridColumn: 1,
+                gridRow:
+                  visibleRowGridStart +
+                  (visibleRowRange.last - visibleRowRange.first + 1),
+                height: `${bottomSpacerHeight}px`,
+              }}
+            />
           ) : null}
         </div>
       </div>
