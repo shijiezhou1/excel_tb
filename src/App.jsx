@@ -320,6 +320,7 @@ function ExcelGrid({ data }) {
   const [fillState, setFillState] = useState(null);
   const [resizeState, setResizeState] = useState(null);
   const [scrollTop, setScrollTop] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
   const gridRef = useRef(null);
   const editorRef = useRef(null);
 
@@ -452,6 +453,50 @@ function ExcelGrid({ data }) {
       editorRef.current.select();
     }
   }, [editingCell]);
+
+  // Auto-scroll the viewport so the active cell stays visible during keyboard navigation
+  useEffect(() => {
+    const viewport = gridRef.current;
+    if (!viewport) return;
+
+    const currentScrollTop = viewport.scrollTop;
+    const currentScrollLeft = viewport.scrollLeft;
+    const viewportWidth = viewport.clientWidth;
+    const viewportHeight = viewport.clientHeight;
+
+    let cellTop = COL_HEADER_HEIGHT;
+    for (let r = 0; r < activeCell.row; r += 1) {
+      cellTop += rowHeights[r] ?? DEFAULT_ROW_HEIGHT;
+    }
+    const cellBottom = cellTop + (rowHeights[activeCell.row] ?? DEFAULT_ROW_HEIGHT);
+
+    let targetScrollTop = currentScrollTop;
+    if (cellTop < currentScrollTop) {
+      targetScrollTop = cellTop;
+    } else if (cellBottom > currentScrollTop + viewportHeight) {
+      targetScrollTop = cellBottom - viewportHeight;
+    }
+
+    let cellLeft = ROW_HEADER_WIDTH;
+    for (let c = 0; c < activeCell.col; c += 1) {
+      cellLeft += colWidths[c] ?? DEFAULT_COL_WIDTH;
+    }
+    const cellRight = cellLeft + (colWidths[activeCell.col] ?? DEFAULT_COL_WIDTH);
+
+    let targetScrollLeft = currentScrollLeft;
+    if (cellLeft < currentScrollLeft) {
+      targetScrollLeft = cellLeft;
+    } else if (cellRight > currentScrollLeft + viewportWidth) {
+      targetScrollLeft = cellRight - viewportWidth;
+    }
+
+    if (targetScrollTop !== currentScrollTop) {
+      viewport.scrollTop = targetScrollTop;
+    }
+    if (targetScrollLeft !== currentScrollLeft) {
+      viewport.scrollLeft = targetScrollLeft;
+    }
+  }, [activeCell, rowHeights, colWidths]);
 
   useEffect(() => {
     if (!resizeState) return undefined;
@@ -589,6 +634,7 @@ function ExcelGrid({ data }) {
   function handleScroll() {
     if (gridRef.current) {
       setScrollTop(gridRef.current.scrollTop);
+      setScrollLeft(gridRef.current.scrollLeft);
     }
   }
 
