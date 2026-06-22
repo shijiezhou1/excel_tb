@@ -86,6 +86,7 @@ textarea {
 
 .workbook {
   --formula-height: 34px;
+  position: relative;
   display: flex;
   flex-direction: column;
   height: calc(100vh - 36px);
@@ -432,6 +433,21 @@ textarea {
   color: #323a47;
 }
 
+/* Change history highlight */
+.sheet-cell.is-history-changed {
+  background: #fff8e1;
+  box-shadow: inset 3px 0 0 #f9a825;
+}
+
+.sheet-cell.is-history-changed:hover {
+  background: #fff3c4;
+}
+
+.sheet-cell.is-history-changed.is-selected {
+  background: #fef3c7;
+  box-shadow: inset 3px 0 0 #f9a825;
+}
+
 
 .cell-content {
   width: 100%;
@@ -502,4 +518,50 @@ textarea {
   .grid-viewport {
     min-height: 0;
   }
+}
+
+/* History tooltip */
+.history-tooltip {
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+
+.history-tooltip::after {
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #fff;
+  content: "";
+}
+
+.history-tooltip-old {
+  color: #c62828;
+  text-decoration: line-through;
+}
+
+.history-tooltip-arrow {
+  color: #9e9e9e;
+  font-weight: 500;
+}
+
+.history-tooltip-new {
+  color: #2e7d32;
+  font-weight: 600;
 }

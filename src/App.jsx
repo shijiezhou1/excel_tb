@@ -282,6 +282,12 @@ function App() {
   const [demoCols, setDemoCols] = useState(() => 30);
   const [data, setData] = useState(() => generateDemoData(100, 30));
 
+  const histVal = [
+    { col: 1, row: 2, oldVal: "ccc3c", newVal: "gggaw2peawp" },
+    { col: 1, row: 3, oldVal: "ccc23c", newVal: "gggawp3eawp" },
+    { col: 5, row: 3, oldVal: "dasc", newVal: "gggawp3e21awp" },
+  ];
+
   function applyDemoSize() {
     setData(generateDemoData(demoRows, demoCols));
   }
@@ -324,13 +330,14 @@ function App() {
         <ExcelGrid
           data={data}
           defaultWidth={[100, 100, 200, 160, 120, 180, 120, 140]}
+          histVal={histVal}
         />
       </section>
     </main>
   );
 }
 
-function ExcelGrid({ data, defaultWidth = [] }) {
+function ExcelGrid({ data, defaultWidth = [], histVal = [] }) {
   const rowCount = data.length;
   const colCount = data[0]?.length ?? 0;
 
@@ -360,6 +367,18 @@ function ExcelGrid({ data, defaultWidth = [] }) {
   const [scrollTop, setScrollTop] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const gridRef = useRef(null);
+
+  // Change history lookup: key "row-col" -> { oldVal, newVal }
+  const historyMap = useMemo(() => {
+    const map = new Map();
+    for (const h of histVal) {
+      map.set(`${h.row}-${h.col}`, { oldVal: h.oldVal, newVal: h.newVal });
+    }
+    return map;
+  }, [histVal]);
+
+  const [historyTooltip, setHistoryTooltip] = useState(null);
+  const workbookRef = useRef(null);
   const editorRef = useRef(null);
 
   const selectionRange = useMemo(
@@ -1061,6 +1080,7 @@ function ExcelGrid({ data, defaultWidth = [] }) {
     <div
       className="workbook"
       style={{ "--formula-height": `${formulaHeight}px` }}
+      ref={workbookRef}
     >
       <div className="formula-strip">
         <div className="name-box">{activeAddress}</div>
@@ -1227,6 +1247,8 @@ function ExcelGrid({ data, defaultWidth = [] }) {
                   col === selectionRange.endCol &&
                   !editingCell;
 
+                const history = historyMap.get(`${row}-${col}`);
+
                 return (
                   <div
                     className={[
@@ -1241,6 +1263,7 @@ function ExcelGrid({ data, defaultWidth = [] }) {
                       row === lastFrozenRow ? "is-freeze-row-edge" : "",
                       col === lastFrozenCol ? "is-freeze-col-edge" : "",
                       fillPreview ? "is-fill-preview" : "",
+                      history ? "is-history-changed" : "",
                     ].join(" ")}
                     key={`${row}-${col}`}
                     onDoubleClick={() => startEdit(row, col)}
@@ -1249,6 +1272,19 @@ function ExcelGrid({ data, defaultWidth = [] }) {
                     }
                     onPointerEnter={() => handleCellPointerEnter(row, col)}
                     role="gridcell"
+                    onMouseEnter={(e) => {
+                      if (!history) return;
+                      const cellRect = e.currentTarget.getBoundingClientRect();
+                      const wbRect = workbookRef.current?.getBoundingClientRect();
+                      if (!wbRect) return;
+                      setHistoryTooltip({
+                        oldVal: history.oldVal,
+                        newVal: history.newVal,
+                        top: cellRect.top - wbRect.top - 4,
+                        left: cellRect.left - wbRect.left + cellRect.width / 2,
+                      });
+                    }}
+                    onMouseLeave={() => setHistoryTooltip(null)}
                     style={getCellStyle(row, col)}
                   >
                     {editing ? (
@@ -1291,6 +1327,21 @@ function ExcelGrid({ data, defaultWidth = [] }) {
           ) : null}
         </div>
       </div>
+
+      {historyTooltip && (
+        <div
+          className="history-tooltip"
+          style={{
+            position: "absolute",
+            top: historyTooltip.top,
+            left: historyTooltip.left,
+          }}
+        >
+          <span className="history-tooltip-old">{historyTooltip.oldVal}</span>
+          <span className="history-tooltip-arrow"> → </span>
+          <span className="history-tooltip-new">{historyTooltip.newVal}</span>
+        </div>
+      )}
     </div>
   );
 }
