@@ -1224,6 +1224,7 @@ function ExcelGrid({ data }) {
                   <div
                     className={[
                       "sheet-cell",
+                      row < 2 ? "is-header-row" : "",
                       selected ? "is-selected" : "",
                       active ? "is-active" : "",
                       editing ? "is-editing" : "",

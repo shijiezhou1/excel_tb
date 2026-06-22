@@ -427,6 +427,12 @@ textarea {
   pointer-events: none;
   content: "";
 }
+.sheet-cell.is-header-row {
+  font-weight: 700;
+  font-size: 14px;
+  color: #323a47;
+}
+
 
 .cell-content {
   width: 100%;
