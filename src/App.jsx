@@ -321,20 +321,26 @@ function App() {
         </span>
       </div>
       <section className="sheet-stage" aria-label="Excel style table">
-        <ExcelGrid data={data} />
+        <ExcelGrid
+          data={data}
+          defaultWidth={[100, 100, 200, 160, 120, 180, 120, 140]}
+        />
       </section>
     </main>
   );
 }
 
-function ExcelGrid({ data }) {
+function ExcelGrid({ data, defaultWidth = [] }) {
   const rowCount = data.length;
   const colCount = data[0]?.length ?? 0;
 
   const [rows, setRows] = useState(data);
   const [colWidths, setColWidths] = useState(() =>
-    Array.from({ length: colCount }, () => DEFAULT_COL_WIDTH),
+    initColWidths(colCount),
   );
+  function initColWidths(count) {
+    return Array.from({ length: count }, (_, c) => defaultWidth[c] ?? DEFAULT_COL_WIDTH);
+  }
   const [rowHeights, setRowHeights] = useState(() =>
     Array.from({ length: rowCount }, () => DEFAULT_ROW_HEIGHT),
   );
@@ -477,7 +483,7 @@ function ExcelGrid({ data }) {
 
   useEffect(() => {
     if (colCount !== colWidths.length) {
-      setColWidths(Array.from({ length: colCount }, () => DEFAULT_COL_WIDTH));
+      setColWidths(initColWidths(colCount));
     }
   }, [colCount]);
 
@@ -1004,8 +1010,9 @@ function ExcelGrid({ data }) {
 
   function toggleColsExpanded() {
     if (colsExpanded) {
-      setColWidths(Array.from({ length: colCount }, () => DEFAULT_COL_WIDTH));
+      setColWidths(initColWidths(colCount));
     } else {
+
       const newWidths = colWidths.map((_w, c) => {
         let max = measureTextWidth(columnName(c));
         for (let r = 1; r < rowCount; r += 1) {
